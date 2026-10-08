@@ -1,0 +1,141 @@
+diff --git a/custom_components/ble_led_pixel/api.py b/custom_components/ble_led_pixel/api.py
+index 59c9192..40eb42e 100644
+--- a/custom_components/ble_led_pixel/api.py
++++ b/custom_components/ble_led_pixel/api.py
+@@ -18,6 +18,7 @@ from .bluetooth.client import BluetoothClient
+ from .device.commands import (
+     make_power_command,
+     make_brightness_command,
++    make_orientation_command,
+ )
+ from .device.clock import make_clock_mode_command, make_time_command
+ from .device.commands import (
+@@ -1292,6 +1293,24 @@ class BleLedPixelAPI:
+             f"at {minutes:02d}:{seconds:02d}",
+         )
+ 
++    async def set_orientation(self, orientation: int) -> bool:
++        """Rotate the display: 0 = 0°, 1 = 90°, 2 = 180°, 3 = 270°.
++
++        The panel does not keep this across a power cut, so it has to be sent
++        again whenever the panel comes back.
++        """
++        try:
++            command = make_orientation_command(orientation)
++        except ValueError as err:
++            _LOGGER.error("Invalid orientation value: %s", err)
++            return False
++        success = await self._send_with_reconnect(command)
++        if success:
++            _LOGGER.debug("Orientation set to %d", orientation)
++        else:
++            _LOGGER.error("Failed to set orientation to %d", orientation)
++        return success
++
+     async def set_stopwatch(self, running: bool) -> bool:
+         """Start or stop the stopwatch.
+ 
+diff --git a/custom_components/ble_led_pixel/device/commands.py b/custom_components/ble_led_pixel/device/commands.py
+index 80d4772..3226a94 100644
+--- a/custom_components/ble_led_pixel/device/commands.py
++++ b/custom_components/ble_led_pixel/device/commands.py
+@@ -94,6 +94,23 @@ def make_countdown_command(running: bool, minutes: int, seconds: int) -> bytes:
+     ])
+ 
+ 
++def make_orientation_command(orientation: int) -> bytes:
++    """Build the orientation command.
++
++    Frame: [5, 0, 6, 0x80, orientation], from pypixelcolor set_orientation.
++    0 = 0°, 1 = 90°, 2 = 180°, 3 = 270°.
++
++    The panel forgets the orientation when it loses power, so whoever owns
++    the panel has to send it again after a power cut.
++
++    Raises:
++        ValueError: If orientation is not 0-3.
++    """
++    if orientation not in (0, 1, 2, 3):
++        raise ValueError("Orientation must be between 0 and 3")
++    return bytes([5, 0, 6, 0x80, orientation])
++
++
+ def make_stopwatch_command(running: bool) -> bytes:
+     """Build the stopwatch command.
+ 
+diff --git a/custom_components/ble_led_pixel/services.py b/custom_components/ble_led_pixel/services.py
+index ba3bc64..200a399 100644
+--- a/custom_components/ble_led_pixel/services.py
++++ b/custom_components/ble_led_pixel/services.py
+@@ -305,6 +305,17 @@ def async_setup_services(hass: HomeAssistant) -> None:
+         func="async_set_stopwatch",
+     )
+ 
++    service.async_register_platform_entity_service(
++        hass,
++        DOMAIN,
++        "set_orientation",
++        entity_domain=Platform.TEXT,
++        schema={
++            vol.Required("orientation"): vol.All(vol.Coerce(int), vol.Range(min=0, max=3)),
++        },
++        func="async_set_orientation",
++    )
++
+     service.async_register_platform_entity_service(
+         hass,
+         DOMAIN,
+diff --git a/custom_components/ble_led_pixel/services.yaml b/custom_components/ble_led_pixel/services.yaml
+index 59ef936..5a4ec6e 100644
+--- a/custom_components/ble_led_pixel/services.yaml
++++ b/custom_components/ble_led_pixel/services.yaml
+@@ -736,6 +736,27 @@ set_stopwatch:
+       selector:
+         boolean:
+ 
++set_orientation:
++  name: Set orientation
++  description: >-
++    Rotate the display. The panel forgets this when it loses power, so send it
++    again whenever the panel comes back.
++  target:
++    entity:
++      integration: ble_led_pixel
++      domain: text
++  fields:
++    orientation:
++      name: Orientation
++      description: 0 = 0°, 1 = 90°, 2 = 180°, 3 = 270°.
++      required: true
++      example: 2
++      selector:
++        number:
++          min: 0
++          max: 3
++          mode: box
++
+ set_password:
+   name: Set password
+   description: >-
+diff --git a/custom_components/ble_led_pixel/text.py b/custom_components/ble_led_pixel/text.py
+index 863bdb0..a8c8e0a 100644
+--- a/custom_components/ble_led_pixel/text.py
++++ b/custom_components/ble_led_pixel/text.py
+@@ -452,6 +452,17 @@ class BleLedPixelTextDisplay(TextEntity, RestoreEntity):
+                 "Failed to control the stopwatch - check the logs for details"
+             )
+ 
++    async def async_set_orientation(self, orientation: int) -> None:
++        """Rotate the display (action: set_orientation).
++
++        Args:
++            orientation: 0 = 0°, 1 = 90°, 2 = 180°, 3 = 270°.
++        """
++        if not await self._api.set_orientation(orientation):
++            raise HomeAssistantError(
++                f"Failed to set orientation {orientation} - check the logs for details"
++            )
++
+     async def async_delete_slot(self, slot: int) -> None:
+         """Erase one stored picture from the panel (action: delete_slot).
+ 

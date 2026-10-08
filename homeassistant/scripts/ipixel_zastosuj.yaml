@@ -12,6 +12,7 @@ fields:
 variables:
   panel_text: text.ipixel_panel_display
   font: /config/fonts/DejaVu-Sans-Mono-Bold.ttf
+  orientation: 2
   dark: '{{ (test_dark | bool) if test_dark is defined else is_state(''sun.sun'', ''below_horizon'') }}'
   bright: '{{ 10 if dark else 100 }}'
   status: '{{ states(''input_select.status_tomka'') }}'
@@ -27,6 +28,11 @@ sequence:
     - action: switch.turn_on
       target:
         entity_id: switch.ipixel_panel
+    - action: ble_led_pixel.set_orientation
+      target:
+        entity_id: '{{ panel_text }}'
+      data:
+        orientation: '{{ orientation }}'
     - action: number.set_value
       target:
         entity_id: number.ipixel_panel_brightness

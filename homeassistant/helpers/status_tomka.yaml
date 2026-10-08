@@ -1,0 +1,11 @@
+# input_select.status_tomka: work status that drives the panel
+# (brak = none, on_air = do not disturb, sluchawki = headphones on).
+# Created as a UI helper; this file is the reference definition.
+id: status_tomka
+name: Status Tomka
+icon: mdi:account-voice
+options:
+- brak
+- on_air
+- sluchawki
+initial: brak

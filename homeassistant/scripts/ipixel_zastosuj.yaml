@@ -1,0 +1,76 @@
+# Desired-state script: computes what the panel should show from the status helper
+# and the sun, then pushes it. Sets input_boolean.ipixel_zastosowano off at start
+# and on at the end, so the conductor automation knows whether to retry.
+# Lives under the key ipixel_zastosuj in scripts.yaml.
+alias: iPixel — zastosuj stan
+mode: queued
+max: 3
+fields:
+  test_dark:
+    description: 'Test: udawany zmrok true/false'
+    example: true
+variables:
+  panel_text: text.ipixel_panel_display
+  font: /config/fonts/DejaVu-Sans-Mono-Bold.ttf
+  orientation: 2
+  dark: '{{ (test_dark | bool) if test_dark is defined else is_state(''sun.sun'', ''below_horizon'') }}'
+  bright: '{{ 10 if dark else 100 }}'
+  status: '{{ states(''input_select.status_tomka'') }}'
+  msg_on_air: '[#ff0000]![/][#ff1d00]![/][#ff3b00]![/] [#ff7700]O[/][#ff9500]N[/] [#ffd100]A[/][#ffef00]I[/][#f0ff00]R[/] [#b4ff00]![/][#96ff00]![/][#78ff00]![/] [#3cff00]M[/][#1eff00]a[/][#00ff00]m[/] [#00ff3b]s[/][#00ff58]p[/][#00ff76]o[/][#00ff94]t[/][#00ffb2]k[/][#00ffd0]a[/][#00ffee]n[/][#00f1ff]i[/][#00d3ff]e[/] [#0097ff]-[/] [#005bff]n[/][#003dff]i[/][#001fff]e[/] [#1c00ff]p[/][#3a00ff]r[/][#5800ff]z[/][#7600ff]e[/][#9400ff]s[/][#b100ff]z[/][#cf00ff]k[/][#ed00ff]a[/][#ff00f2]d[/][#ff00d4]z[/][#ff00b6]a[/][#ff0098]ć[/]'
+  msg_sluchawki: '[#05ff00]P[/][#03ff00]r[/][#00ff00]a[/][#00ff05]c[/][#00ff0e]u[/][#00ff18]j[/][#00ff25]ę[/] [#00ff44]w[/] [#00ff6b]s[/][#00ff80]ł[/][#00ff96]u[/][#00ffae]c[/][#00ffc6]h[/][#00ffde]a[/][#00fff7]w[/][#00edff]k[/][#00d5ff]a[/][#00bdff]c[/][#00a6ff]h[/] [#007aff]i[/] [#0054ff]C[/][#0043ff]i[/][#0034ff]ę[/] [#001dff]n[/][#0015ff]i[/][#000fff]e[/] [#000aff]s[/][#000bff]ł[/][#000fff]y[/][#0015ff]s[/][#001dff]z[/][#0028ff]ę[/] [#0043ff]-[/] [#0066ff]w[/][#007aff]e[/][#008fff]j[/][#00a6ff]d[/][#00bdff]ź[/] [#00edff]ś[/][#00fff7]m[/][#00ffde]i[/][#00ffc6]a[/][#00ffae]ł[/][#00ff96]o[/] [#00ff6b]i[/] [#00ff44]d[/][#00ff34]a[/][#00ff25]j[/] [#00ff0e]z[/][#00ff05]n[/][#00ff00]a[/][#03ff00]ć[/]'
+sequence:
+- action: input_boolean.turn_off
+  target:
+    entity_id: input_boolean.ipixel_zastosowano
+- choose:
+  - conditions: '{{ status in [''on_air'', ''sluchawki''] }}'
+    sequence:
+    - action: switch.turn_on
+      target:
+        entity_id: switch.ipixel_panel
+    - action: ble_led_pixel.set_orientation
+      target:
+        entity_id: '{{ panel_text }}'
+      data:
+        orientation: '{{ orientation }}'
+    - action: number.set_value
+      target:
+        entity_id: number.ipixel_panel_brightness
+      data:
+        value: '{{ bright }}'
+    - choose:
+      - conditions: '{{ status == ''on_air'' }}'
+        sequence:
+        - action: ble_led_pixel.send_text
+          target:
+            entity_id: '{{ panel_text }}'
+          data:
+            text: '{{ msg_on_air }}'
+            animation: '1'
+            speed: 80
+            bg_color:
+            - 0
+            - 0
+            - 0
+            font: '{{ font }}'
+      - conditions: '{{ status == ''sluchawki'' }}'
+        sequence:
+        - action: ble_led_pixel.send_text
+          target:
+            entity_id: '{{ panel_text }}'
+          data:
+            text: '{{ msg_sluchawki }}'
+            animation: '1'
+            speed: 80
+            bg_color:
+            - 0
+            - 0
+            - 0
+            font: '{{ font }}'
+  default:
+  - action: switch.turn_off
+    target:
+      entity_id: switch.ipixel_panel
+- action: input_boolean.turn_on
+  target:
+    entity_id: input_boolean.ipixel_zastosowano

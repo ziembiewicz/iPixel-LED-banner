@@ -1,0 +1,25 @@
+# Status fuse: a forgotten status does not hang on the door forever.
+# ON AIR falls back to "brak" (none) after limit_min minutes; SLUCHAWKI (headphones) at 22:00.
+# Note: after an HA restart last_changed is the restart time, so the ON AIR limit
+# counts from the restart (accepted on purpose).
+id: '1790531958163'
+alias: iPixel — bezpiecznik statusu
+description: ON AIR wraca do brak po limit_min minutach, SŁUCHAWKI o 22:00. Projekt ipixel-automations.
+triggers:
+- platform: template
+  value_template: '{{ is_state(''input_select.status_tomka'', ''on_air'') and (now() - states.input_select.status_tomka.last_changed).total_seconds() > limit_min * 60 }}'
+  id: on_air_limit
+- platform: time
+  at: '22:00:00'
+  id: noc
+conditions:
+- '{{ trigger.id == ''on_air_limit'' or is_state(''input_select.status_tomka'', ''sluchawki'') }}'
+actions:
+- action: input_select.select_option
+  target:
+    entity_id: input_select.status_tomka
+  data:
+    option: brak
+mode: single
+trigger_variables:
+  limit_min: 180

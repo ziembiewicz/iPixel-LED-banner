@@ -1,0 +1,110 @@
+diff --git a/custom_components/ble_led_pixel/api.py b/custom_components/ble_led_pixel/api.py
+index 17d448c..59c9192 100644
+--- a/custom_components/ble_led_pixel/api.py
++++ b/custom_components/ble_led_pixel/api.py
+@@ -1366,7 +1366,7 @@ class BleLedPixelAPI:
+                 self._font_size_note = None
+ 
+             # Generate text commands using pypixelcolor
+-            commands = make_text_command(
++            plan = make_text_command(
+                 text=text,
+                 color=color,
+                 bg_color=bg_color,
+@@ -1378,18 +1378,16 @@ class BleLedPixelAPI:
+                 char_height=char_height
+             )
+ 
+-            # Send all command frames
+-            for i, command in enumerate(commands):
+-                _LOGGER.debug(
+-                    "Sending pypixelcolor text frame %d/%d: %d bytes",
+-                    i + 1,
+-                    len(commands),
+-                    len(command)
+-                )
+-                success = await self._send_with_reconnect(command)
+-                if not success:
+-                    _LOGGER.error("Failed to send text frame %d/%d", i + 1, len(commands))
+-                    return False
++            # A SendPlan, sent like the image paths above: a text frame is
++            # ~20 bytes per character, and one raw write_gatt_char of more
++            # than 512 bytes is dropped silently (nothing past ~24
++            # characters ever reached the panel, yet the write "succeeded").
++            # send_plan chunks each window and waits for the panel's ACK.
++            windows = list(plan.windows)
++            success = await self._bluetooth.send_plan(plan, ack_timeout=25.0)
++            if not success:
++                _LOGGER.error("Failed to send text to the panel")
++                return False
+ 
+             _LOGGER.info(
+                 "Pypixelcolor text sent: '%s' (color=%s, bg=%s, font=%s, anim=%d, speed=%d, frames=%d)",
+@@ -1399,7 +1397,7 @@ class BleLedPixelAPI:
+                 font,
+                 animation,
+                 speed,
+-                len(commands)
++                len(windows)
+             )
+             return True
+ 
+diff --git a/custom_components/ble_led_pixel/device/text.py b/custom_components/ble_led_pixel/device/text.py
+index b9a02c7..789e4ce 100644
+--- a/custom_components/ble_led_pixel/device/text.py
++++ b/custom_components/ble_led_pixel/device/text.py
+@@ -21,7 +21,7 @@ def make_text_command(
+     rainbow_mode: int = 0,
+     save_slot: int = 0,
+     char_height: Optional[int] = None
+-) -> list[bytes]:
++) -> "SendPlan":
+     """Build text display command using pypixelcolor.
+ 
+     Args:
+@@ -41,7 +41,10 @@ def make_text_command(
+         char_height: Character height in pixels (auto-detected if None)
+ 
+     Returns:
+-        List of command bytes (one per window/frame)
++        The library's SendPlan. Send it with BluetoothClient.send_plan(),
++        which splits each window into BLE-sized chunks and waits for the
++        panel's acknowledgement - a text frame is ~20 bytes per character,
++        so anything past ~24 characters exceeds a single 512-byte GATT write.
+ 
+     Raises:
+         ImportError: If pypixelcolor is not available
+@@ -63,10 +66,4 @@ def make_text_command(
+         char_height=char_height
+     )
+ 
+-    # Extract command bytes from all windows
+-    # send_text may return multiple windows for large text
+-    commands = []
+-    for window in send_plan.windows:
+-        commands.append(window.data)
+-
+-    return commands
++    return send_plan
+diff --git a/custom_components/ble_led_pixel/fonts.py b/custom_components/ble_led_pixel/fonts.py
+index c268ce9..25fcda1 100644
+--- a/custom_components/ble_led_pixel/fonts.py
++++ b/custom_components/ble_led_pixel/fonts.py
+@@ -208,6 +208,17 @@ def resolve_font_for_library(font_name: str | None) -> str:
+         locations, otherwise the name unchanged so the library can still try
+         to resolve it as one of its own.
+     """
++    # Already resolved: text.py resolves the name before calling the API,
++    # which resolves it again. The font index is keyed by file name, so an
++    # absolute path missed, and every font silently became FALLBACK_FONT
++    # (VCR_OSD_MONO, which has no Polish letters).
++    if font_name and Path(font_name).is_absolute() and Path(font_name).is_file():
++        return font_name
++    # The library's own built-in font (pypixelcolor 0.5: UNIFONT) has no file
++    # here; without this it was always replaced by FALLBACK_FONT.
++    if font_name and font_name.upper() == "UNIFONT":
++        return font_name
++
+     for candidate in (font_name, FALLBACK_FONT):
+         if not candidate:
+             continue

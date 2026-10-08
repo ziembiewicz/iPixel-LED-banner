@@ -1,0 +1,33 @@
+# Conductor: calls script.ipixel_zastosuj on every event that may change what the
+# panel should show, retries every 30 s (max 10) until the script reports success,
+# and re-applies the desired state every 10 minutes as self-healing.
+id: '1790531955883'
+alias: iPixel — dyrygent
+description: Panel świeci tylko przy statusie on_air/sluchawki. Woła script.ipixel_zastosuj przy każdym zdarzeniu, które może zmienić treść panelu; ponawia co 30 s (max 10) aż skrypt dojdzie do końca; co 10 min samonaprawa. Projekt ipixel-automations.
+triggers:
+- platform: state
+  entity_id: input_select.status_tomka
+- platform: sun
+  event: sunset
+- platform: sun
+  event: sunrise
+- platform: homeassistant
+  event: start
+- platform: state
+  entity_id: switch.ipixel_panel
+  from: unavailable
+- platform: time_pattern
+  minutes: /10
+actions:
+- if: '{{ trigger.platform == ''homeassistant'' }}'
+  then:
+  - delay: 00:01:00
+- repeat:
+    sequence:
+    - action: script.ipixel_zastosuj
+      continue_on_error: true
+    - if: '{{ is_state(''input_boolean.ipixel_zastosowano'',''off'') and repeat.index < 10 }}'
+      then:
+      - delay: 00:00:30
+    until: '{{ is_state(''input_boolean.ipixel_zastosowano'',''on'') or repeat.index >= 10 }}'
+mode: restart

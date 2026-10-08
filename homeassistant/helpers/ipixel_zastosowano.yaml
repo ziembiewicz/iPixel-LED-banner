@@ -1,0 +1,5 @@
+# input_boolean.ipixel_zastosowano ("applied"): off while the script runs, on when
+# it finished. Created as a UI helper; this file is the reference definition.
+id: ipixel_zastosowano
+name: iPixel zastosowano
+icon: mdi:check-network

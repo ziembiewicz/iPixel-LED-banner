@@ -1,0 +1,47 @@
+# ESP32-C6 (4 MB flash) acting as an ESPHome Bluetooth proxy for Home Assistant.
+# There is no panel logic here: the ESP only relays BLE traffic. The iPixel panel
+# itself is driven by the ble_led_pixel custom integration (HACS) in Home Assistant.
+# Secrets live only in the ESPHome add-on's secrets.yaml (see secrets.yaml.example).
+esphome:
+  name: ipixel-proxy
+  friendly_name: iPixel BLE proxy
+
+esp32:
+  board: esp32-c6-devkitc-1
+  flash_size: 4MB
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  encryption:
+    key: !secret ipixel_proxy_api_key
+
+ota:
+  - platform: esphome
+    password: !secret ipixel_proxy_ota_password
+
+wifi:
+  ssid: !secret wifi_iot_ssid
+  password: !secret wifi_iot_password
+
+# Active scanning: the panel's LED_BLE_* name only arrives in the scan response;
+# without it the integration cannot discover the panel.
+esp32_ble_tracker:
+  scan_parameters:
+    interval: 1100ms
+    window: 1100ms
+    active: true
+
+bluetooth_proxy:
+  active: true
+
+# Diagnostics: uptime and Wi-Fi signal.
+sensor:
+  - platform: uptime
+    name: Uptime
+  - platform: wifi_signal
+    name: WiFi signal
+    update_interval: 60s
+

@@ -2,6 +2,8 @@
 # ON AIR falls back to "brak" (none) after limit_min minutes; SLUCHAWKI (headphones) at 22:00.
 # Note: after an HA restart last_changed is the restart time, so the ON AIR limit
 # counts from the restart (accepted on purpose).
+# ON AIR set by the meeting automation (input_boolean.status_auto on) is not cleared:
+# that automation removes it itself when the meeting ends or the PC goes silent.
 id: '1790531958163'
 alias: iPixel — bezpiecznik statusu
 description: ON AIR wraca do brak po limit_min minutach, SŁUCHAWKI o 22:00. Projekt ipixel-automations.
@@ -13,7 +15,7 @@ triggers:
   at: '22:00:00'
   id: noc
 conditions:
-- '{{ trigger.id == ''on_air_limit'' or is_state(''input_select.status_tomka'', ''sluchawki'') }}'
+- '{{ (trigger.id == ''on_air_limit'' and is_state(''input_boolean.status_auto'', ''off'')) or is_state(''input_select.status_tomka'', ''sluchawki'') }}'
 actions:
 - action: input_select.select_option
   target:

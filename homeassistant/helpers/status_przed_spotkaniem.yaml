@@ -1,0 +1,9 @@
+# input_text.status_przed_spotkaniem ("status before the meeting"): the status to
+# restore when the meeting ends. No initial value on purpose: it must survive a restart.
+# Created as a UI helper; this file is the reference definition.
+id: status_przed_spotkaniem
+name: Status przed spotkaniem
+icon: mdi:history
+min: 0
+max: 20
+mode: text

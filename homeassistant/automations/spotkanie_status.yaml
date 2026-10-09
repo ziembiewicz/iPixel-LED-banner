@@ -1,0 +1,60 @@
+# Meeting -> door sign status. When the PC reports a meeting, remember the current
+# status, raise input_boolean.status_auto and switch to on_air. When the meeting ends,
+# restore the remembered status, but only while the automation still owns it.
+# A manual change (kiosk tile, UI: the change carries a user_id) clears the flag:
+# the human always wins. "sluchawki" is not restored at night (22:00-06:00), matching
+# the status fuse. The conductor reacts to the status change as usual.
+id: '1791574872647'
+alias: iPixel — status ze spotkania
+description: Spotkanie na PC → on_air; koniec spotkania → status sprzed spotkania, o ile nikt go w międzyczasie nie zmienił ręcznie. Projekt meeting-detection.
+triggers:
+- platform: state
+  entity_id: input_boolean.pc_spotkanie
+  to: 'on'
+  id: start
+- platform: state
+  entity_id: input_boolean.pc_spotkanie
+  from: 'on'
+  to: 'off'
+  id: koniec
+- platform: state
+  entity_id: input_select.status_tomka
+  id: reczna
+actions:
+- choose:
+  - conditions: '{{ trigger.id == ''start'' and not is_state(''input_select.status_tomka'', ''on_air'') }}'
+    sequence:
+    - action: input_text.set_value
+      target:
+        entity_id: input_text.status_przed_spotkaniem
+      data:
+        value: '{{ states(''input_select.status_tomka'') }}'
+    - action: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.status_auto
+    - action: input_select.select_option
+      target:
+        entity_id: input_select.status_tomka
+      data:
+        option: on_air
+  - conditions: '{{ trigger.id == ''koniec'' and is_state(''input_boolean.status_auto'', ''on'') }}'
+    sequence:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.status_auto
+    - if: '{{ is_state(''input_select.status_tomka'', ''on_air'') }}'
+      then:
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.status_tomka
+        data:
+          option: >-
+            {% set prev = states('input_text.status_przed_spotkaniem') %}
+            {% set night = now().hour >= 22 or now().hour < 6 %}
+            {{ 'sluchawki' if prev == 'sluchawki' and not night else 'brak' }}
+  - conditions: '{{ trigger.id == ''reczna'' and trigger.to_state.context.user_id is not none and is_state(''input_boolean.status_auto'', ''on'') }}'
+    sequence:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.status_auto
+mode: queued

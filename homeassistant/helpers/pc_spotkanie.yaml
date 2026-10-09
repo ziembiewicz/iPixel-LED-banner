@@ -1,0 +1,6 @@
+# input_boolean.pc_spotkanie ("meeting on the PC"): on while the PC reports that the
+# microphone or the webcam is in use. Set only by automation spotkanie_pc.
+# Created as a UI helper; this file is the reference definition.
+id: pc_spotkanie
+name: Spotkanie na PC
+icon: mdi:microphone-message

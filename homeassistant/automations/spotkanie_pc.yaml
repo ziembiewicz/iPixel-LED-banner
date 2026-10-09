@@ -1,0 +1,38 @@
+# Meeting signal from the PC: windows/meeting-detector.ps1 posts {"in_use": true|false}
+# on every change and as a heartbeat every 60 s. Each post restarts this automation,
+# so the 3-minute delay works like a dead man's switch: when the PC goes silent
+# (sleep, shutdown, network loss), input_boolean.pc_spotkanie falls back to off.
+# After an HA restart the same timer runs, so a stale "on" cannot survive.
+# The webhook accepts POST from the local network only; its ID is kept outside the repo.
+id: '1791574872646'
+alias: iPixel — spotkanie z PC
+description: Webhook z PC (mikrofon/kamera w użyciu) ustawia input_boolean.pc_spotkanie; brak meldunku przez 3 min = koniec spotkania. Projekt meeting-detection.
+triggers:
+- platform: webhook
+  webhook_id: MEETING_WEBHOOK_ID
+  allowed_methods:
+  - POST
+  local_only: true
+  id: pc
+- platform: homeassistant
+  event: start
+  id: start
+actions:
+- variables:
+    in_use: '{{ trigger.id == ''pc'' and trigger.json is mapping and trigger.json.get(''in_use'') == true }}'
+- if: '{{ trigger.id == ''pc'' and not in_use }}'
+  then:
+  - action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.pc_spotkanie
+  - stop: PC reports no meeting
+- if: '{{ in_use }}'
+  then:
+  - action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.pc_spotkanie
+- delay: 00:03:00
+- action: input_boolean.turn_off
+  target:
+    entity_id: input_boolean.pc_spotkanie
+mode: restart

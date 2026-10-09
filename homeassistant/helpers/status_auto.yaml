@@ -1,0 +1,7 @@
+# input_boolean.status_auto ("set by automation"): on while the current status was
+# set by automation spotkanie_status. Any manual status change clears it, so the
+# automation never overrides a choice made by hand.
+# Created as a UI helper; this file is the reference definition.
+id: status_auto
+name: Status z automatu
+icon: mdi:robot

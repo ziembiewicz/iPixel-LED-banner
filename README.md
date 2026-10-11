@@ -14,8 +14,9 @@ Home Assistant ──API──> ESP32-C6 (ESPHome bluetooth_proxy) ──BLE─�
 - **ble_led_pixel** (HACS custom integration) talks the panel's protocol, with local patches.
 - **Desired state, not commands:** one script computes what the panel *should* show and pushes it;
   one automation calls it on every relevant event and retries until it succeeds.
-- **Meeting detection:** a small PowerShell script on the PC reports when the microphone or the webcam
-  is in use; Home Assistant then sets the status to ON AIR and restores the previous one afterwards.
+- **Meeting detection:** a small PowerShell script on the PC reports when a browser (Teams on the web)
+  holds the microphone or the webcam; Home Assistant then sets the status to ON AIR and restores the
+  previous one afterwards.
   A status set by hand always wins. See `windows/README.md`.
 
 ## Layout

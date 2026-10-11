@@ -60,6 +60,22 @@ Everything lives in one folder, `%LOCALAPPDATA%\meeting-detector\`:
 
    The task must run as the logged-on user: the access record lives in that user's registry hive.
 
+### Stop and upgrade
+
+`Stop-ScheduledTask` ends only the `conhost.exe` wrapper; the script itself keeps running.
+To stop the detector, end the script process too:
+
+```powershell
+Stop-ScheduledTask -TaskName 'meeting-detector'
+Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
+  Where-Object { $_.CommandLine -like '*meeting-detector.ps1*' } |
+  Invoke-CimMethod -MethodName Terminate
+```
+
+To upgrade, copy the new `meeting-detector.ps1` over the old one and run
+`Start-ScheduledTask -TaskName 'meeting-detector'`. On start the script ends any older copy of
+itself and logs `replaced older copy PID ...`, so only the new version keeps running.
+
 ### Upgrading from the first version
 
 The first version read `config.json` from `%APPDATA%` (Roaming) and started a visible window.
@@ -74,9 +90,11 @@ Move-Item "$env:APPDATA\meeting-detector\config.json" "$env:LOCALAPPDATA\meeting
 ## Check
 
 - Task running: `Get-ScheduledTask meeting-detector | Select-Object State` shows `Running`.
+- Exactly one copy running (one line expected):
+  `Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -like '*meeting-detector.ps1*' } | Select-Object ProcessId, CreationDate`
 - Log: `Get-Content "$env:LOCALAPPDATA\meeting-detector\meeting-detector.log" -Tail 20`.
-  It records the start, every change of `in_use` and errors (a missing config, Home Assistant
-  unreachable). The webhook address is never logged. The log rotates at 512 KB.
+  It records the start, every change of `in_use`, older copies it replaced and errors
+  (a missing config, Home Assistant unreachable). The webhook address is never logged. The log rotates at 512 KB.
 - Webhook reachable from the PC:
   `Invoke-RestMethod -Method Post -ContentType 'application/json' -Body '{"in_use":false}' -Uri <webhook_url>`
 - Which apps Windows lists as holding the microphone right now (before the allowlist and the
@@ -100,6 +118,8 @@ Move-Item "$env:APPDATA\meeting-detector\config.json" "$env:LOCALAPPDATA\meeting
 - The webhook is `local_only`: it does not work from outside the home network, for example over a full-tunnel VPN.
 
 ## Remove
+
+Stop the detector as in [Stop and upgrade](#stop-and-upgrade), then:
 
 ```powershell
 Unregister-ScheduledTask -TaskName 'meeting-detector' -Confirm:$false

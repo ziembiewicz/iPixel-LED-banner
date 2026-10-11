@@ -20,6 +20,10 @@
   Assistant tell a silent PC (sleep, shutdown) from a finished meeting.
   Only booleans leave the PC: no app names, no window titles.
 
+  Only one copy runs at a time: on start the script ends any older copy of itself. Stopping
+  the scheduled task ends only the conhost.exe wrapper and leaves powershell.exe running,
+  so without this a restart or an upgrade would leave two copies posting side by side.
+
 .NOTES
   Config file next to this script (not in the repository), config.json:
     { "webhook_url": "http://192.0.2.10:8123/api/webhook/MEETING_WEBHOOK_ID",
@@ -71,6 +75,19 @@ function Test-DeviceInUse {
     return $false
 }
 
+function Stop-OlderInstance {
+    # The newest copy wins, so an upgraded script replaces the old one instead of running beside it.
+    $scriptName = Split-Path -Leaf $PSCommandPath
+    $self = Get-CimInstance Win32_Process -Filter "ProcessId=$PID"
+    $older = Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe'" |
+        Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like "*$scriptName*" -and
+                       $_.CreationDate -lt $self.CreationDate }
+    foreach ($p in $older) {
+        Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+        Write-Log "replaced older copy PID $($p.ProcessId) started $($p.CreationDate)"
+    }
+}
+
 try {
     $config = Get-Content -Raw -Path $ConfigPath | ConvertFrom-Json
     $url = $config.webhook_url
@@ -81,6 +98,13 @@ try {
 catch {
     Write-Log "ERROR config: $($_.Exception.Message)"
     exit 1
+}
+try {
+    Stop-OlderInstance
+}
+catch {
+    # A failed check must not stop the detector.
+    Write-Log "ERROR older copy check: $($_.Exception.Message)"
 }
 Write-Log "start: apps=$($apps -join ',') poll=${PollSeconds}s heartbeat=${HeartbeatSeconds}s"
 
